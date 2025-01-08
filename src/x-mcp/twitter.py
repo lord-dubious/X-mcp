@@ -19,7 +19,7 @@ EMAIL = os.getenv("TWITTER_EMAIL")
 PASSWORD = os.getenv("TWITTER_PASSWORD")
 USER_AGENT = os.getenv("USER_AGENT")
 CAPSOLVER_API_KEY = os.getenv("CAPSOLVER_API_KEY")
-COOKIES_PATH = Path.home() / ".mcp-twikit" / "cookies.json"
+COOKIES_PATH = Path.home() / ".x-mcp" / "cookies.json"
 
 # Rate limit tracking
 RATE_LIMITS = {}

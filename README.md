@@ -1,4 +1,4 @@
-# x-mcp: Bridging Twitter and AI with the Model Context Protocol
+# X-mcp: Bridging Twitter and AI with the Model Context Protocol
 
 This document provides a comprehensive guide to using the `x-mcp` server. This server acts as a bridge, enabling Large Language Models (LLMs) and AI applications to interact with Twitter using the Model Context Protocol (MCP) through the Twikit library.
 

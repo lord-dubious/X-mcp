@@ -22,4 +22,4 @@ dependencies = [
 Homepage = "https://github.com/lord-dubious/mcp-twikit"
 
 [project.scripts]
-x-mcp = "mcp_twikit.twitter:mcp.run"
+x-mcp = "x-mcp.twitter:mcp.run"
