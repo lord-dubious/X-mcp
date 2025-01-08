@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "x-mcp"
 version = "0.2.0"
-description = "Twitter search tool for FastMCP using Twikit"
+description = "X-mcp: Bridging Twitter and AI with the Model Context Protocol using Twikit"
 readme = "README.md"
 requires-python = ">=3.7"
 license = "MIT"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lord-dubious/mcp-twikit"
+Homepage = "https://github.com/lord-dubious/x-mcp"
 
 [project.scripts]
 x-mcp = "x-mcp.twitter:mcp.run"
