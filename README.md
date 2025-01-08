@@ -20,8 +20,8 @@ In essence, MCP creates a standardized way for LLMs to interact with the world b
 
 1.  **Clone Repository:**
     ```bash
-    git clone https://github.com/lord-dubious/mcp-twikit
-    cd mcp-twikit
+    git clone https://github.com/lord-dubious/x-mcp
+    cd x-mcp
     ```
 2.  **Configure MCP:** Add the following configuration to your MCP settings file. This tells your MCP host (e.g., Claude) how to find and use the `x-mcp` server:
     ```json
