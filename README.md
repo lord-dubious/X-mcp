@@ -28,7 +28,7 @@ In essence, MCP creates a standardized way for LLMs to interact with the world b
     {
         "mcpServer": {
             "command": "uvx",
-            "args": ["--from", "git+https://github.com/lord-dubious/mcp-twikit", "mcp-twikit"],
+            "args": ["--from", "git+https://github.com/lord-dubious/x-mcp", "x-mcp"],
             "env": {
                 "TWITTER_USERNAME": "@your_username",
                 "TWITTER_EMAIL": "your_email@example.com",
