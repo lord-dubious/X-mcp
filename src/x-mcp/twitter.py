@@ -9,7 +9,7 @@ import json
 
 # Create an MCP server with proper metadata
 mcp = FastMCP(
-    name="twitter-mcp",
+    name="x-mcp",
     version="1.0.0",
     description="Twitter API integration through Twikit library",
 )

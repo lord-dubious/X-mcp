@@ -36,7 +36,7 @@ A FastMCP implementation for interacting with Twitter's API using the Twikit lib
 
    ```json
    {
-       "mcpServer": {
+       "x-mcp": {
            "command": "uvx",
            "args": ["--from", "git+https://github.com/lord-dubious/x-mcp", "x-mcp"],
            "env": {
