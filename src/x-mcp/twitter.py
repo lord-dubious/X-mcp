@@ -3,13 +3,17 @@ import twikit
 import os
 from pathlib import Path
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Union
 import time
-from typing import Optional, List
-import time
+import json
 
-# Create an MCP server
-mcp = FastMCP("x-mcp")
+# Create an MCP server with proper metadata
+mcp = FastMCP(
+    name="twitter-mcp",
+    version="1.0.0",
+    description="Twitter API integration through Twikit library",
+)
+
 logger = logging.getLogger(__name__)
 httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.WARNING)
@@ -22,8 +26,21 @@ CAPSOLVER_API_KEY = os.getenv("CAPSOLVER_API_KEY")
 COOKIES_PATH = Path.home() / ".x-mcp" / "cookies.json"
 
 # Rate limit tracking
-RATE_LIMITS = {}
+RATE_LIMITS: Dict[str, List[float]] = {}
 RATE_LIMIT_WINDOW = 15 * 60  # 15 minutes in seconds
+
+
+def convert_tweets_to_markdown(tweets: Any) -> str:
+    """Convert tweet objects to markdown format."""
+    try:
+        tweet_list = []
+        for tweet in tweets:
+            tweet_text = tweet.text.replace("\n", "\n> ")
+            tweet_list.append(f"Tweet ID: {tweet.id}\n> {tweet_text}\n")
+        return "\n".join(tweet_list)
+    except Exception as e:
+        logger.error(f"Failed to convert tweets to markdown: {e}")
+        return str(tweets)
 
 
 async def get_twitter_client() -> twikit.Client:
@@ -63,22 +80,45 @@ def check_rate_limit(endpoint: str) -> bool:
     ]
 
     # Check limits based on endpoint
-    if endpoint == "tweet":
-        return len(RATE_LIMITS[endpoint]) < 300  # 300 tweets per 15 minutes
-    elif endpoint == "dm":
-        return len(RATE_LIMITS[endpoint]) < 1000  # 1000 DMs per 15 minutes
-    return True
+    limits = {
+        "tweet": 300,  # 300 tweets per 15 minutes
+        "dm": 1000,  # 1000 DMs per 15 minutes
+        "follow": 400,  # 400 follows per 24 hours
+        "like": 1000,  # 1000 likes per 24 hours
+    }
+
+    limit = limits.get(endpoint, 100)  # Default to 100 for unknown endpoints
+    return len(RATE_LIMITS[endpoint]) < limit
 
 
-# Existing search and read tools
+@mcp.tool()
+async def search_user(
+    query: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
+    """Searches for users based on the provided query."""
+    try:
+        client = await get_twitter_client()
+        users = await client.search_user(query, count=count, cursor=cursor)
+        return str(users)  # Assuming you want to return the raw result for now
+    except Exception as e:
+        logger.error(f"Failed to search users: {e}")
+        return f"Failed to search users: {e}"
+
+
 @mcp.tool()
 async def search_twitter(
-    query: str, sort_by: str = "Top", count: int = 10, ctx: Context = None
+    query: str,
+    product: str = "Top",
+    count: int = 20,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
 ) -> str:
     """Search twitter with a query. Sort by 'Top' or 'Latest'"""
     try:
         client = await get_twitter_client()
-        tweets = await client.search_tweet(query, product=sort_by, count=count)
+        tweets = await client.search_tweet(
+            query, product=product, count=count, cursor=cursor
+        )
         return convert_tweets_to_markdown(tweets)
     except Exception as e:
         logger.error(f"Failed to search tweets: {e}")
@@ -87,18 +127,17 @@ async def search_twitter(
 
 @mcp.tool()
 async def get_user_tweets(
-    username: str, tweet_type: str = "Tweets", count: int = 10, ctx: Context = None
+    user_id: str,
+    tweet_type: str = "Tweets",
+    count: int = 40,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
 ) -> str:
     """Get tweets from a specific user's timeline."""
     try:
         client = await get_twitter_client()
-        username = username.lstrip("@")
-        user = await client.get_user_by_screen_name(username)
-        if not user:
-            return f"Could not find user {username}"
-
         tweets = await client.get_user_tweets(
-            user_id=user.id, tweet_type=tweet_type, count=count
+            user_id=user_id, tweet_type=tweet_type, count=count, cursor=cursor
         )
         return convert_tweets_to_markdown(tweets)
     except Exception as e:
@@ -107,12 +146,19 @@ async def get_user_tweets(
 
 
 @mcp.tool()
-async def get_timeline(count: int = 20) -> str:
+async def get_timeline(
+    count: int = 20,
+    seen_tweet_ids: Optional[List[str]] = None,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Get tweets from your home timeline (For You)."""
     """Get tweets from your home timeline (For You)."""
     try:
         client = await get_twitter_client()
-        tweets = await client.get_timeline(count=count)
+        tweets = await client.get_timeline(
+            count=count, seen_tweet_ids=seen_tweet_ids, cursor=cursor
+        )
         return convert_tweets_to_markdown(tweets)
     except Exception as e:
         logger.error(f"Failed to get timeline: {e}")
@@ -132,7 +178,6 @@ async def get_latest_timeline(count: int = 20) -> str:
         return f"Failed to get latest timeline: {e}"
 
 
-# New write tools
 @mcp.tool()
 async def post_tweet(
     text: str,
@@ -163,7 +208,7 @@ async def post_tweet(
         tweet = await client.create_tweet(
             text=text, media_ids=media_ids if media_ids else None, reply_to=reply_to
         )
-        RATE_LIMITS.setdefault("tweet", []).append(time.time())
+        RATE_LIMITS["tweet"].append(time.time())
         return f"Successfully posted tweet: {tweet.id}"
     except Exception as e:
         logger.error(f"Failed to post tweet: {e}")
@@ -196,7 +241,7 @@ async def send_dm(user_id: str, message: str, media_path: Optional[str] = None) 
             media_id = await client.upload_media(media_path, wait_for_completion=True)
 
         await client.send_dm(user_id=user_id, text=message, media_id=media_id)
-        RATE_LIMITS.setdefault("dm", []).append(time.time())
+        RATE_LIMITS["dm"].append(time.time())
         return f"Successfully sent DM to user {user_id}"
     except Exception as e:
         logger.error(f"Failed to send DM: {e}")
@@ -743,17 +788,6 @@ async def edit_bookmark_folder(folder_id: str, name: str, ctx: Context = None) -
         return f"Successfully edited bookmark folder {folder.id}"
     except Exception as e:
         logger.error(f"Failed to edit bookmark folder: {e}")
-        return f"Failed to edit bookmark folder: {e}"
-
-
-@mcp.tool()
-async def delete_bookmark_folder(folder_id: str, ctx: Context = None) -> str:
-    """Deletes a bookmark folder."""
-    try:
-        client = await get_twitter_client()
-        await client.delete_bookmark_folder(folder_id)
-        return f"Successfully deleted bookmark folder {folder_id}"
-    except Exception as e:
         logger.error(f"Failed to delete bookmark folder: {e}")
         return f"Failed to delete bookmark folder: {e}"
 
@@ -863,19 +897,35 @@ async def get_user_followers(
         logger.error(f"Failed to get user followers: {e}")
         return f"Failed to get user followers: {e}"
 
+
 @mcp.tool()
-async def get_latest_followers(user_id: Optional[str] = None, screen_name: Optional[str] = None, count: int = 200, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_latest_followers(
+    user_id: Optional[str] = None,
+    screen_name: Optional[str] = None,
+    count: int = 200,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Retrieves the latest followers."""
     try:
         client = await get_twitter_client()
-        followers = await client.get_latest_followers(user_id, screen_name, count, cursor)
+        followers = await client.get_latest_followers(
+            user_id, screen_name, count, cursor
+        )
         return convert_tweets_to_markdown(followers)
     except Exception as e:
         logger.error(f"Failed to get latest followers: {e}")
         return f"Failed to get latest followers: {e}"
 
+
 @mcp.tool()
-async def get_latest_friends(user_id: Optional[str] = None, screen_name: Optional[str] = None, count: int = 200, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_latest_friends(
+    user_id: Optional[str] = None,
+    screen_name: Optional[str] = None,
+    count: int = 200,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Retrieves the latest friends (following users)."""
     try:
         client = await get_twitter_client()
@@ -885,8 +935,11 @@ async def get_latest_friends(user_id: Optional[str] = None, screen_name: Optiona
         logger.error(f"Failed to get latest friends: {e}")
         return f"Failed to get latest friends: {e}"
 
+
 @mcp.tool()
-async def get_user_verified_followers(user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_user_verified_followers(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves a list of verified followers for a given user."""
     try:
         client = await get_twitter_client()
@@ -896,8 +949,11 @@ async def get_user_verified_followers(user_id: str, count: int = 20, cursor: Opt
         logger.error(f"Failed to get user verified followers: {e}")
         return f"Failed to get user verified followers: {e}"
 
+
 @mcp.tool()
-async def get_user_followers_you_know(user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_user_followers_you_know(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves a list of common followers."""
     try:
         client = await get_twitter_client()
@@ -907,8 +963,11 @@ async def get_user_followers_you_know(user_id: str, count: int = 20, cursor: Opt
         logger.error(f"Failed to get user followers you might know: {e}")
         return f"Failed to get user followers you might know: {e}"
 
+
 @mcp.tool()
-async def get_user_following(user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_user_following(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves a list of users whom the given user is following."""
     try:
         client = await get_twitter_client()
@@ -918,8 +977,11 @@ async def get_user_following(user_id: str, count: int = 20, cursor: Optional[str
         logger.error(f"Failed to get user following: {e}")
         return f"Failed to get user following: {e}"
 
+
 @mcp.tool()
-async def get_user_subscriptions(user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_user_subscriptions(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves a list of users to which the specified user is subscribed."""
     try:
         client = await get_twitter_client()
@@ -929,8 +991,15 @@ async def get_user_subscriptions(user_id: str, count: int = 20, cursor: Optional
         logger.error(f"Failed to get user subscriptions: {e}")
         return f"Failed to get user subscriptions: {e}"
 
+
 @mcp.tool()
-async def get_followers_ids(user_id: Optional[str] = None, screen_name: Optional[str] = None, count: int = 5000, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_followers_ids(
+    user_id: Optional[str] = None,
+    screen_name: Optional[str] = None,
+    count: int = 5000,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Fetches the IDs of the followers of a specified user."""
     try:
         client = await get_twitter_client()
@@ -940,8 +1009,15 @@ async def get_followers_ids(user_id: Optional[str] = None, screen_name: Optional
         logger.error(f"Failed to get followers ids: {e}")
         return f"Failed to get followers ids: {e}"
 
+
 @mcp.tool()
-async def get_friends_ids(user_id: Optional[str] = None, screen_name: Optional[str] = None, count: int = 5000, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_friends_ids(
+    user_id: Optional[str] = None,
+    screen_name: Optional[str] = None,
+    count: int = 5000,
+    cursor: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Fetches the IDs of the friends (following users) of a specified user."""
     try:
         client = await get_twitter_client()
@@ -950,6 +1026,7 @@ async def get_friends_ids(user_id: Optional[str] = None, screen_name: Optional[s
     except Exception as e:
         logger.error(f"Failed to get friends ids: {e}")
         return f"Failed to get friends ids: {e}"
+
 
 @mcp.tool()
 async def unmute_user(user_id: str, ctx: Context = None) -> str:
@@ -962,8 +1039,11 @@ async def unmute_user(user_id: str, ctx: Context = None) -> str:
         logger.error(f"Failed to unmute user: {e}")
         return f"Failed to unmute user: {e}"
 
+
 @mcp.tool()
-async def get_highlights_tweets(user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None) -> str:
+async def get_highlights_tweets(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves highlighted tweets from a user’s timeline."""
     try:
         client = await get_twitter_client()
@@ -972,6 +1052,7 @@ async def get_highlights_tweets(user_id: str, count: int = 20, cursor: Optional[
     except Exception as e:
         logger.error(f"Failed to get user highlights tweets: {e}")
         return f"Failed to get user highlights tweets: {e}"
+
 
 @mcp.tool()
 async def update_user(ctx: Context = None) -> str:
@@ -985,8 +1066,11 @@ async def update_user(ctx: Context = None) -> str:
         logger.error(f"Failed to update user: {e}")
         return f"Failed to update user: {e}"
 
+
 @mcp.tool()
-async def add_reaction_to_message(message_id: str, conversation_id: str, emoji: str, ctx: Context = None) -> str:
+async def add_reaction_to_message(
+    message_id: str, conversation_id: str, emoji: str, ctx: Context = None
+) -> str:
     """Adds a reaction emoji to a specific message in a conversation."""
     try:
         client = await get_twitter_client()
@@ -996,8 +1080,11 @@ async def add_reaction_to_message(message_id: str, conversation_id: str, emoji: 
         logger.error(f"Failed to add reaction to message: {e}")
         return f"Failed to add reaction to message: {e}"
 
+
 @mcp.tool()
-async def remove_reaction_from_message(message_id: str, conversation_id: str, emoji: str, ctx: Context = None) -> str:
+async def remove_reaction_from_message(
+    message_id: str, conversation_id: str, emoji: str, ctx: Context = None
+) -> str:
     """Remove a reaction from a message."""
     try:
         client = await get_twitter_client()
@@ -1007,8 +1094,11 @@ async def remove_reaction_from_message(message_id: str, conversation_id: str, em
         logger.error(f"Failed to remove reaction from message: {e}")
         return f"Failed to remove reaction from message: {e}"
 
+
 @mcp.tool()
-async def get_dm_history(user_id: str, max_id: Optional[str] = None, ctx: Context = None) -> str:
+async def get_dm_history(
+    user_id: str, max_id: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves the DM conversation history with a specific user."""
     try:
         client = await get_twitter_client()
@@ -1018,8 +1108,15 @@ async def get_dm_history(user_id: str, max_id: Optional[str] = None, ctx: Contex
         logger.error(f"Failed to get DM history: {e}")
         return f"Failed to get DM history: {e}"
 
+
 @mcp.tool()
-async def send_dm_to_group(group_id: str, text: str, media_id: Optional[str] = None, reply_to: Optional[str] = None, ctx: Context = None) -> str:
+async def send_dm_to_group(
+    group_id: str,
+    text: str,
+    media_id: Optional[str] = None,
+    reply_to: Optional[str] = None,
+    ctx: Context = None,
+) -> str:
     """Sends a message to a group."""
     try:
         client = await get_twitter_client()
@@ -1029,8 +1126,11 @@ async def send_dm_to_group(group_id: str, text: str, media_id: Optional[str] = N
         logger.error(f"Failed to send DM to group: {e}")
         return f"Failed to send DM to group: {e}"
 
+
 @mcp.tool()
-async def get_group_dm_history(group_id: str, max_id: Optional[str] = None, ctx: Context = None) -> str:
+async def get_group_dm_history(
+    group_id: str, max_id: Optional[str] = None, ctx: Context = None
+) -> str:
     """Retrieves the DM conversation history in a group."""
     try:
         client = await get_twitter_client()
@@ -1039,6 +1139,7 @@ async def get_group_dm_history(group_id: str, max_id: Optional[str] = None, ctx:
     except Exception as e:
         logger.error(f"Failed to get group DM history: {e}")
         return f"Failed to get group DM history: {e}"
+
 
 @mcp.tool()
 async def get_group(group_id: str, ctx: Context = None) -> str:
@@ -1051,8 +1152,11 @@ async def get_group(group_id: str, ctx: Context = None) -> str:
         logger.error(f"Failed to get group: {e}")
         return f"Failed to get group: {e}"
 
+
 @mcp.tool()
-async def add_members_to_group(group_id: str, user_ids: List[str], ctx: Context = None) -> str:
+async def add_members_to_group(
+    group_id: str, user_ids: List[str], ctx: Context = None
+) -> str:
     """Adds members to a group."""
     try:
         client = await get_twitter_client()
@@ -1061,6 +1165,7 @@ async def add_members_to_group(group_id: str, user_ids: List[str], ctx: Context 
     except Exception as e:
         logger.error(f"Failed to add members to group: {e}")
         return f"Failed to add members to group: {e}"
+
 
 @mcp.tool()
 async def change_group_name(group_id: str, name: str, ctx: Context = None) -> str:
@@ -1073,101 +1178,200 @@ async def change_group_name(group_id: str, name: str, ctx: Context = None) -> st
         logger.error(f"Failed to change group name: {e}")
         return f"Failed to change group name: {e}"
 
-@mcp.tool()
-async def remove_reaction_from_message(message_id: str, conversation_id: str, emoji: str, ctx: Context = None) -> str:
-    """Remove a reaction from a message."""
+
+@mcp.tool(
+    name="get_user_profile",
+    description="Get detailed profile information for a user",
+    schema={
+        "type": "object",
+        "properties": {
+            "user_id": {
+                "type": "string",
+                "description": "Twitter user ID to fetch profile for"
+            }
+        },
+        "required": ["user_id"]
+    }
+)
+async def get_user_profile(user_id: str, ctx: Context = None) -> Dict[str, Any]:
+    """Get detailed profile information for a user."""
     try:
         client = await get_twitter_client()
-        await client.remove_reaction_from_message(message_id, conversation_id, emoji)
-        return f"Successfully removed reaction from message {message_id}"
+        user = await client.get_user_by_id(user_id)
+        
+        ctx.info(f"Fetched profile for user {user.screen_name}")
+        
+        return {
+            "success": True,
+            "data": {
+                "id": user.id,
+                "name": user.name,
+                "screen_name": user.screen_name,
+                "description": user.description,
+                "followers_count": user.followers_count,
+                "following_count": user.following_count,
+                "location": user.location,
+                "url": user.url,
+                "verified": user.verified
+            }
+        }
     except Exception as e:
-        logger.error(f"Failed to remove reaction from message: {e}")
-        return f"Failed to remove reaction from message: {e}"
+        logger.error(f"Failed to get user profile: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": "TwitterAPIError"
+        }
+
+
+@mcp.tool(
+    name="get_tweet_details",
+    description="Get detailed information about a specific tweet",
+    schema={
+        "type": "object",
+        "properties": {
+            "tweet_id": {
+                "type": "string",
+                "description": "ID of the tweet to fetch details for"
+            }
+        },
+        "required": ["tweet_id"]
+    }
+)
+async def get_tweet_details(tweet_id: str, ctx: Context = None) -> Dict[str, Any]:
+    """Get detailed information about a specific tweet."""
+    try:
+        client = await get_twitter_client()
+        tweet = await client.get_tweet_by_id(tweet_id)
+        
+        ctx.info(f"Fetched details for tweet {tweet_id}")
+        
+        return {
+            "success": True,
+            "data": {
+                "id": tweet.id,
+                "text": tweet.text,
+                "created_at": str(tweet.created_at),
+                "author_id": tweet.author_id,
+                "retweet_count": tweet.retweet_count,
+                "favorite_count": tweet.favorite_count,
+                "reply_count": tweet.reply_count,
+                "quote_count": tweet.quote_count,
+                "lang": tweet.lang
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to get tweet details: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": "TwitterAPIError"
+        }
+
 
 @mcp.tool()
-async def remove_reaction_from_message(message_id: str, conversation_id: str, emoji: str, ctx: Context = None) -> str:
-    """Remove a reaction from a message."""
+async def create_poll_tweet(
+    text: str, choices: List[str], duration_minutes: int = 1440, ctx: Context = None
+) -> str:
+    """Create a tweet with a poll."""
     try:
+        if not check_rate_limit("tweet"):
+            return "Rate limit exceeded for tweets. Please wait before posting again."
+
         client = await get_twitter_client()
-        await client.remove_reaction_from_message(message_id, conversation_id, emoji)
-        return f"Successfully removed reaction from message {message_id}"
+        card_uri = await client.create_poll(choices, duration_minutes)
+        tweet = await client.create_tweet(text=text, card_uri=card_uri)
+        RATE_LIMITS["tweet"].append(time.time())
+        return f"Successfully created poll tweet: {tweet.id}"
     except Exception as e:
-        logger.error(f"Failed to remove reaction from message: {e}")
-        return f"Failed to remove reaction from message: {e}"
+        logger.error(f"Failed to create poll tweet: {e}")
+        return f"Failed to create poll tweet: {e}"
+
 
 @mcp.tool()
-async def remove_reaction_from_message(message_id: str, conversation_id: str, emoji: str, ctx: Context = None) -> str:
-    """Remove a reaction from a message."""
+async def vote_on_poll(tweet_id: str, choice: str, ctx: Context = None) -> str:
+    """Vote on a poll."""
     try:
         client = await get_twitter_client()
-        await client.remove_reaction_from_message(message_id, conversation_id, emoji)
-        return f"Successfully removed reaction from message {message_id}"
+        tweet = await client.get_tweet_by_id(tweet_id)
+        if not hasattr(tweet, "card"):
+            return "This tweet does not contain a poll"
+
+        await client.vote(
+            selected_choice=choice,
+            card_uri=tweet.card.url,
+            tweet_id=tweet_id,
+            card_name=tweet.card.name,
+        )
+        return f"Successfully voted for '{choice}' on tweet {tweet_id}"
     except Exception as e:
-        logger.error(f"Failed to remove reaction from message: {e}")
-        return f"Failed to remove reaction from message: {e}"
+        logger.error(f"Failed to vote on poll: {e}")
+        return f"Failed to vote on poll: {e}"
+
 
 @mcp.tool()
-async def get_dm_history(user_id: str, max_id: Optional[str] = None, ctx: Context = None) -> str:
-    """Retrieves the DM conversation history with a specific user."""
+async def get_trends(
+    category: str = "trending", count: int = 20, ctx: Context = None
+) -> str:
+    """Get trending topics on Twitter."""
     try:
         client = await get_twitter_client()
-        messages = await client.get_dm_history(user_id, max_id)
-        return str(messages)
+        trends = await client.get_trends(category=category, count=count)
+        return json.dumps(
+            [
+                {
+                    "name": trend.name,
+                    "url": trend.url,
+                    "tweet_volume": trend.tweet_volume,
+                }
+                for trend in trends
+            ],
+            indent=2,
+        )
     except Exception as e:
-        logger.error(f"Failed to get DM history: {e}")
-        return f"Failed to get DM history: {e}"
+        logger.error(f"Failed to get trends: {e}")
+        return f"Failed to get trends: {e}"
+
 
 @mcp.tool()
-async def send_dm_to_group(group_id: str, text: str, media_id: Optional[str] = None, reply_to: Optional[str] = None, ctx: Context = None) -> str:
-    """Sends a message to a group."""
+async def get_user_mentions(
+    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+) -> str:
+    """Get tweets mentioning a specific user."""
     try:
         client = await get_twitter_client()
-        message = await client.send_dm_to_group(group_id, text, media_id, reply_to)
-        return f"Successfully sent DM to group {group_id}: {message.id}"
+        query = f"@{user_id}"
+        tweets = await client.search_tweet(
+            query, product="Latest", count=count, cursor=cursor
+        )
+        return convert_tweets_to_markdown(tweets)
     except Exception as e:
-        logger.error(f"Failed to send DM to group: {e}")
-        return f"Failed to send DM to group: {e}"
+        logger.error(f"Failed to get user mentions: {e}")
+        return f"Failed to get user mentions: {e}"
+
 
 @mcp.tool()
-async def get_group_dm_history(group_id: str, max_id: Optional[str] = None, ctx: Context = None) -> str:
-    """Retrieves the DM conversation history in a group."""
+async def get_conversation_thread(tweet_id: str, ctx: Context = None) -> str:
+    """Get the full conversation thread for a tweet."""
     try:
         client = await get_twitter_client()
-        messages = await client.get_group_dm_history(group_id, max_id)
-        return str(messages)
-    except Exception as e:
-        logger.error(f"Failed to get group DM history: {e}")
-        return f"Failed to get group DM history: {e}"
+        tweet = await client.get_tweet_by_id(tweet_id)
+        conversation = []
 
-@mcp.tool()
-async def get_group(group_id: str, ctx: Context = None) -> str:
-    """Fetches a group by ID."""
-    try:
-        client = await get_twitter_client()
-        group = await client.get_group(group_id)
-        return str(group)
-    except Exception as e:
-        logger.error(f"Failed to get group: {e}")
-        return f"Failed to get group: {e}"
+        # Get parent tweets if this is a reply
+        current_tweet = tweet
+        while hasattr(current_tweet, "in_reply_to_status_id"):
+            parent_id = current_tweet.in_reply_to_status_id
+            if parent_id:
+                current_tweet = await client.get_tweet_by_id(parent_id)
+                conversation.insert(0, current_tweet)
+            else:
+                break
 
-@mcp.tool()
-async def add_members_to_group(group_id: str, user_ids: List[str], ctx: Context = None) -> str:
-    """Adds members to a group."""
-    try:
-        client = await get_twitter_client()
-        await client.add_members_to_group(group_id, user_ids)
-        return f"Successfully added members to group {group_id}"
-    except Exception as e:
-        logger.error(f"Failed to add members to group: {e}")
-        return f"Failed to add members to group: {e}"
+        # Add the main tweet
+        conversation.append(tweet)
 
-@mcp.tool()
-async def change_group_name(group_id: str, name: str, ctx: Context = None) -> str:
-    """Changes group name."""
-    try:
-        client = await get_twitter_client()
-        await client.change_group_name(group_id, name)
-        return f"Successfully changed group name for group {group_id}"
+        return convert_tweets_to_markdown(conversation)
     except Exception as e:
-        logger.error(f"Failed to change group name: {e}")
-        return f"Failed to change group name: {e}"
+        logger.error(f"Failed to get conversation thread: {e}")
+        return f"Failed to get conversation thread: {e}"
