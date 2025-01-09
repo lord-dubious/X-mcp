@@ -1,18 +1,14 @@
-from fastmcp import FastMCP, Context
+from fastmcp import FastMCP
+from typing import Optional, List, Dict, Any, Union
 import twikit
 import os
 from pathlib import Path
 import logging
-from typing import Optional, List, Dict, Any, Union
 import time
 import json
 
 # Create an MCP server with proper metadata
-mcp = FastMCP(
-    name="x-mcp",
-    version="1.0.0",
-    description="Twitter API integration through Twikit library",
-)
+mcp = FastMCP()
 
 logger = logging.getLogger(__name__)
 httpx_logger = logging.getLogger("httpx")
@@ -93,7 +89,7 @@ def check_rate_limit(endpoint: str) -> bool:
 
 @mcp.tool()
 async def search_user(
-    query: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    query: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Searches for users based on the provided query."""
     try:
@@ -111,7 +107,6 @@ async def search_twitter(
     product: str = "Top",
     count: int = 20,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Search twitter with a query. Sort by 'Top' or 'Latest'"""
     try:
@@ -131,7 +126,6 @@ async def get_user_tweets(
     tweet_type: str = "Tweets",
     count: int = 40,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Get tweets from a specific user's timeline."""
     try:
@@ -150,7 +144,6 @@ async def get_timeline(
     count: int = 20,
     seen_tweet_ids: Optional[List[str]] = None,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Get tweets from your home timeline (For You)."""
     """Get tweets from your home timeline (For You)."""
@@ -261,7 +254,7 @@ async def delete_dm(message_id: str) -> str:
 
 
 @mcp.tool()
-async def logout(ctx: Context = None) -> str:
+async def logout() -> str:
     """Logs out of the currently logged-in account."""
     try:
         client = await get_twitter_client()
@@ -273,7 +266,7 @@ async def logout(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def unlock(ctx: Context = None) -> str:
+async def unlock() -> str:
     """Unlocks the account using the provided CAPTCHA solver."""
     try:
         client = await get_twitter_client()
@@ -285,7 +278,7 @@ async def unlock(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_cookies(ctx: Context = None) -> str:
+async def get_cookies() -> str:
     """Get the cookies."""
     try:
         client = await get_twitter_client()
@@ -297,7 +290,7 @@ async def get_cookies(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def save_cookies(path: str, ctx: Context = None) -> str:
+async def save_cookies(path: str) -> str:
     """Save cookies to file in json format."""
     try:
         client = await get_twitter_client()
@@ -310,7 +303,7 @@ async def save_cookies(path: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def set_cookies(
-    cookies: str, clear_cookies: bool = False, ctx: Context = None
+    cookies: str, clear_cookies: bool = False
 ) -> str:
     """Sets cookies."""
     try:
@@ -325,7 +318,7 @@ async def set_cookies(
 
 
 @mcp.tool()
-async def load_cookies(path: str, ctx: Context = None) -> str:
+async def load_cookies(path: str) -> str:
     """Loads cookies from a file."""
     try:
         client = await get_twitter_client()
@@ -337,7 +330,7 @@ async def load_cookies(path: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def set_delegate_account(user_id: str, ctx: Context = None) -> str:
+async def set_delegate_account(user_id: str) -> str:
     """Sets the account to act as."""
     try:
         client = await get_twitter_client()
@@ -349,7 +342,7 @@ async def set_delegate_account(user_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_user_id(ctx: Context = None) -> str:
+async def get_user_id() -> str:
     """Retrieves the user ID associated with the authenticated account."""
     try:
         client = await get_twitter_client()
@@ -361,7 +354,7 @@ async def get_user_id(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_user(ctx: Context = None) -> str:
+async def get_user() -> str:
     """Retrieve detailed information about the authenticated user."""
     try:
         client = await get_twitter_client()
@@ -373,7 +366,7 @@ async def get_user(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_similar_tweets(tweet_id: str, ctx: Context = None) -> str:
+async def get_similar_tweets(tweet_id: str) -> str:
     """Retrieves tweets similar to the specified tweet (Twitter premium only)."""
     try:
         client = await get_twitter_client()
@@ -389,7 +382,6 @@ async def create_media_metadata(
     media_id: str,
     alt_text: Optional[str] = None,
     sensitive_warning: Optional[List[str]] = None,
-    ctx: Context = None,
 ) -> str:
     """Adds metadata to uploaded media."""
     try:
@@ -403,7 +395,7 @@ async def create_media_metadata(
 
 @mcp.tool()
 async def create_poll(
-    choices: List[str], duration_minutes: int, ctx: Context = None
+    choices: List[str], duration_minutes: int
 ) -> str:
     """Creates a poll and returns card-uri."""
     try:
@@ -421,7 +413,6 @@ async def vote(
     card_uri: str,
     tweet_id: str,
     card_name: str,
-    ctx: Context = None,
 ) -> str:
     """Vote on a poll with the selected choice."""
     try:
@@ -438,7 +429,6 @@ async def create_scheduled_tweet(
     scheduled_at: int,
     text: str = "",
     media_paths: Optional[List[str]] = None,
-    ctx: Context = None,
 ) -> str:
     """Schedules a tweet to be posted at a specified timestamp."""
     try:
@@ -456,7 +446,7 @@ async def create_scheduled_tweet(
 
 
 @mcp.tool()
-async def get_user_by_screen_name(screen_name: str, ctx: Context = None) -> str:
+async def get_user_by_screen_name(screen_name: str) -> str:
     """Fetches a user by screen name."""
     try:
         client = await get_twitter_client()
@@ -468,7 +458,7 @@ async def get_user_by_screen_name(screen_name: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_user_by_id(user_id: str, ctx: Context = None) -> str:
+async def get_user_by_id(user_id: str) -> str:
     """Fetches a user by ID."""
     try:
         client = await get_twitter_client()
@@ -486,7 +476,6 @@ async def reverse_geocode(
     accuracy: Optional[str] = None,
     granularity: Optional[str] = None,
     max_results: Optional[int] = None,
-    ctx: Context = None,
 ) -> str:
     """Given a latitude and a longitude, searches for up to 20 places."""
     try:
@@ -508,7 +497,6 @@ async def search_geo(
     ip: Optional[str] = None,
     granularity: Optional[str] = None,
     max_results: Optional[int] = None,
-    ctx: Context = None,
 ) -> str:
     """Search for places that can be attached to a Tweet."""
     try:
@@ -521,7 +509,7 @@ async def search_geo(
 
 
 @mcp.tool()
-async def get_place(place_id: str, ctx: Context = None) -> str:
+async def get_place(place_id: str) -> str:
     """Retrieves a place by ID."""
     try:
         client = await get_twitter_client()
@@ -534,7 +522,7 @@ async def get_place(place_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def get_tweet_by_id(
-    tweet_id: str, cursor: Optional[str] = None, ctx: Context = None
+    tweet_id: str, cursor: Optional[str] = None
 ) -> str:
     """Fetches a tweet by tweet ID."""
     try:
@@ -547,7 +535,7 @@ async def get_tweet_by_id(
 
 
 @mcp.tool()
-async def get_scheduled_tweets(ctx: Context = None) -> str:
+async def get_scheduled_tweets() -> str:
     """Retrieves scheduled tweets."""
     try:
         client = await get_twitter_client()
@@ -559,7 +547,7 @@ async def get_scheduled_tweets(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def delete_scheduled_tweet(tweet_id: str, ctx: Context = None) -> str:
+async def delete_scheduled_tweet(tweet_id: str) -> str:
     """Delete a scheduled tweet."""
     try:
         client = await get_twitter_client()
@@ -572,7 +560,7 @@ async def delete_scheduled_tweet(tweet_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def get_retweeters(
-    tweet_id: str, count: int = 40, cursor: Optional[str] = None, ctx: Context = None
+    tweet_id: str, count: int = 40, cursor: Optional[str] = None
 ) -> str:
     """Retrieve users who retweeted a specific tweet."""
     try:
@@ -586,7 +574,7 @@ async def get_retweeters(
 
 @mcp.tool()
 async def get_favoriters(
-    tweet_id: str, count: int = 40, cursor: Optional[str] = None, ctx: Context = None
+    tweet_id: str, count: int = 40, cursor: Optional[str] = None
 ) -> str:
     """Retrieve users who favorited a specific tweet."""
     try:
@@ -599,7 +587,7 @@ async def get_favoriters(
 
 
 @mcp.tool()
-async def get_community_note(note_id: str, ctx: Context = None) -> str:
+async def get_community_note(note_id: str) -> str:
     """Fetches a community note by ID."""
     try:
         client = await get_twitter_client()
@@ -616,7 +604,6 @@ async def get_user_tweets_with_cursor(
     tweet_type: str = "Tweets",
     count: int = 40,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Fetches tweets from a specific user’s timeline."""
     try:
@@ -633,7 +620,6 @@ async def get_timeline_with_cursor(
     count: int = 20,
     seen_tweet_ids: Optional[List[str]] = None,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves the timeline."""
     try:
@@ -650,7 +636,6 @@ async def get_latest_timeline_with_cursor(
     count: int = 20,
     seen_tweet_ids: Optional[List[str]] = None,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves the timeline."""
     try:
@@ -663,7 +648,7 @@ async def get_latest_timeline_with_cursor(
 
 
 @mcp.tool()
-async def favorite_tweet(tweet_id: str, ctx: Context = None) -> str:
+async def favorite_tweet(tweet_id: str) -> str:
     """Favorites a tweet."""
     try:
         client = await get_twitter_client()
@@ -675,7 +660,7 @@ async def favorite_tweet(tweet_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def unfavorite_tweet(tweet_id: str, ctx: Context = None) -> str:
+async def unfavorite_tweet(tweet_id: str) -> str:
     """Unfavorites a tweet."""
     try:
         client = await get_twitter_client()
@@ -687,7 +672,7 @@ async def unfavorite_tweet(tweet_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def retweet(tweet_id: str, ctx: Context = None) -> str:
+async def retweet(tweet_id: str) -> str:
     """Retweets a tweet."""
     try:
         client = await get_twitter_client()
@@ -699,7 +684,7 @@ async def retweet(tweet_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def delete_retweet(tweet_id: str, ctx: Context = None) -> str:
+async def delete_retweet(tweet_id: str) -> str:
     """Deletes the retweet."""
     try:
         client = await get_twitter_client()
@@ -712,7 +697,7 @@ async def delete_retweet(tweet_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def bookmark_tweet(
-    tweet_id: str, folder_id: Optional[str] = None, ctx: Context = None
+    tweet_id: str, folder_id: Optional[str] = None
 ) -> str:
     """Adds the tweet to bookmarks."""
     try:
@@ -725,7 +710,7 @@ async def bookmark_tweet(
 
 
 @mcp.tool()
-async def delete_bookmark(tweet_id: str, ctx: Context = None) -> str:
+async def delete_bookmark(tweet_id: str) -> str:
     """Removes the tweet from bookmarks."""
     try:
         client = await get_twitter_client()
@@ -741,7 +726,6 @@ async def get_bookmarks(
     count: int = 20,
     cursor: Optional[str] = None,
     folder_id: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves bookmarks from the authenticated user’s Twitter account."""
     try:
@@ -754,7 +738,7 @@ async def get_bookmarks(
 
 
 @mcp.tool()
-async def delete_all_bookmarks(ctx: Context = None) -> str:
+async def delete_all_bookmarks() -> str:
     """Deleted all bookmarks."""
     try:
         client = await get_twitter_client()
@@ -766,9 +750,7 @@ async def delete_all_bookmarks(ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_bookmark_folders(
-    cursor: Optional[str] = None, ctx: Context = None
-) -> str:
+async def get_bookmark_folders(cursor: Optional[str] = None) -> str:
     """Retrieves bookmark folders."""
     try:
         client = await get_twitter_client()
@@ -780,7 +762,7 @@ async def get_bookmark_folders(
 
 
 @mcp.tool()
-async def edit_bookmark_folder(folder_id: str, name: str, ctx: Context = None) -> str:
+async def edit_bookmark_folder(folder_id: str, name: str) -> str:
     """Edits a bookmark folder."""
     try:
         client = await get_twitter_client()
@@ -793,7 +775,7 @@ async def edit_bookmark_folder(folder_id: str, name: str, ctx: Context = None) -
 
 
 @mcp.tool()
-async def create_bookmark_folder(name: str, ctx: Context = None) -> str:
+async def create_bookmark_folder(name: str) -> str:
     """Creates a bookmark folder."""
     try:
         client = await get_twitter_client()
@@ -805,7 +787,7 @@ async def create_bookmark_folder(name: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def follow_user(user_id: str, ctx: Context = None) -> str:
+async def follow_user(user_id: str) -> str:
     """Follows a user."""
     try:
         client = await get_twitter_client()
@@ -817,7 +799,7 @@ async def follow_user(user_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def unfollow_user(user_id: str, ctx: Context = None) -> str:
+async def unfollow_user(user_id: str) -> str:
     """Unfollows a user."""
     try:
         client = await get_twitter_client()
@@ -829,7 +811,7 @@ async def unfollow_user(user_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def block_user(user_id: str, ctx: Context = None) -> str:
+async def block_user(user_id: str) -> str:
     """Blocks a user."""
     try:
         client = await get_twitter_client()
@@ -841,7 +823,7 @@ async def block_user(user_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def unblock_user(user_id: str, ctx: Context = None) -> str:
+async def unblock_user(user_id: str) -> str:
     """Unblocks a user."""
     try:
         client = await get_twitter_client()
@@ -853,7 +835,7 @@ async def unblock_user(user_id: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def mute_user(user_id: str, ctx: Context = None) -> str:
+async def mute_user(user_id: str) -> str:
     """Mutes a user."""
     try:
         client = await get_twitter_client()
@@ -870,7 +852,6 @@ async def get_trends(
     count: int = 20,
     retry: bool = True,
     additional_request_params: Optional[dict] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves trending topics on Twitter."""
     try:
@@ -886,7 +867,7 @@ async def get_trends(
 
 @mcp.tool()
 async def get_user_followers(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves a list of followers for a given user."""
     try:
@@ -904,7 +885,6 @@ async def get_latest_followers(
     screen_name: Optional[str] = None,
     count: int = 200,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves the latest followers."""
     try:
@@ -924,7 +904,6 @@ async def get_latest_friends(
     screen_name: Optional[str] = None,
     count: int = 200,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Retrieves the latest friends (following users)."""
     try:
@@ -938,7 +917,7 @@ async def get_latest_friends(
 
 @mcp.tool()
 async def get_user_verified_followers(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves a list of verified followers for a given user."""
     try:
@@ -952,7 +931,7 @@ async def get_user_verified_followers(
 
 @mcp.tool()
 async def get_user_followers_you_know(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves a list of common followers."""
     try:
@@ -966,7 +945,7 @@ async def get_user_followers_you_know(
 
 @mcp.tool()
 async def get_user_following(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves a list of users whom the given user is following."""
     try:
@@ -980,7 +959,7 @@ async def get_user_following(
 
 @mcp.tool()
 async def get_user_subscriptions(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves a list of users to which the specified user is subscribed."""
     try:
@@ -998,7 +977,6 @@ async def get_followers_ids(
     screen_name: Optional[str] = None,
     count: int = 5000,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Fetches the IDs of the followers of a specified user."""
     try:
@@ -1016,7 +994,6 @@ async def get_friends_ids(
     screen_name: Optional[str] = None,
     count: int = 5000,
     cursor: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Fetches the IDs of the friends (following users) of a specified user."""
     try:
@@ -1029,7 +1006,7 @@ async def get_friends_ids(
 
 
 @mcp.tool()
-async def unmute_user(user_id: str, ctx: Context = None) -> str:
+async def unmute_user(user_id: str) -> str:
     """Unmutes a user."""
     try:
         client = await get_twitter_client()
@@ -1042,7 +1019,7 @@ async def unmute_user(user_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def get_highlights_tweets(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Retrieves highlighted tweets from a user’s timeline."""
     try:
@@ -1055,7 +1032,7 @@ async def get_highlights_tweets(
 
 
 @mcp.tool()
-async def update_user(ctx: Context = None) -> str:
+async def update_user() -> str:
     """Updates the user."""
     try:
         client = await get_twitter_client()
@@ -1069,7 +1046,7 @@ async def update_user(ctx: Context = None) -> str:
 
 @mcp.tool()
 async def add_reaction_to_message(
-    message_id: str, conversation_id: str, emoji: str, ctx: Context = None
+    message_id: str, conversation_id: str, emoji: str
 ) -> str:
     """Adds a reaction emoji to a specific message in a conversation."""
     try:
@@ -1083,7 +1060,7 @@ async def add_reaction_to_message(
 
 @mcp.tool()
 async def remove_reaction_from_message(
-    message_id: str, conversation_id: str, emoji: str, ctx: Context = None
+    message_id: str, conversation_id: str, emoji: str
 ) -> str:
     """Remove a reaction from a message."""
     try:
@@ -1097,7 +1074,7 @@ async def remove_reaction_from_message(
 
 @mcp.tool()
 async def get_dm_history(
-    user_id: str, max_id: Optional[str] = None, ctx: Context = None
+    user_id: str, max_id: Optional[str] = None
 ) -> str:
     """Retrieves the DM conversation history with a specific user."""
     try:
@@ -1115,7 +1092,6 @@ async def send_dm_to_group(
     text: str,
     media_id: Optional[str] = None,
     reply_to: Optional[str] = None,
-    ctx: Context = None,
 ) -> str:
     """Sends a message to a group."""
     try:
@@ -1129,7 +1105,7 @@ async def send_dm_to_group(
 
 @mcp.tool()
 async def get_group_dm_history(
-    group_id: str, max_id: Optional[str] = None, ctx: Context = None
+    group_id: str, max_id: Optional[str] = None
 ) -> str:
     """Retrieves the DM conversation history in a group."""
     try:
@@ -1142,7 +1118,7 @@ async def get_group_dm_history(
 
 
 @mcp.tool()
-async def get_group(group_id: str, ctx: Context = None) -> str:
+async def get_group(group_id: str) -> str:
     """Fetches a group by ID."""
     try:
         client = await get_twitter_client()
@@ -1155,7 +1131,7 @@ async def get_group(group_id: str, ctx: Context = None) -> str:
 
 @mcp.tool()
 async def add_members_to_group(
-    group_id: str, user_ids: List[str], ctx: Context = None
+    group_id: str, user_ids: List[str]
 ) -> str:
     """Adds members to a group."""
     try:
@@ -1168,7 +1144,7 @@ async def add_members_to_group(
 
 
 @mcp.tool()
-async def change_group_name(group_id: str, name: str, ctx: Context = None) -> str:
+async def change_group_name(group_id: str, name: str) -> str:
     """Changes group name."""
     try:
         client = await get_twitter_client()
@@ -1179,27 +1155,12 @@ async def change_group_name(group_id: str, name: str, ctx: Context = None) -> st
         return f"Failed to change group name: {e}"
 
 
-@mcp.tool(
-    name="get_user_profile",
-    description="Get detailed profile information for a user",
-    schema={
-        "type": "object",
-        "properties": {
-            "user_id": {
-                "type": "string",
-                "description": "Twitter user ID to fetch profile for"
-            }
-        },
-        "required": ["user_id"]
-    }
-)
-async def get_user_profile(user_id: str, ctx: Context = None) -> Dict[str, Any]:
+@mcp.tool()
+async def get_user_profile(user_id: str) -> Dict[str, Any]:
     """Get detailed profile information for a user."""
     try:
         client = await get_twitter_client()
         user = await client.get_user_by_id(user_id)
-        
-        ctx.info(f"Fetched profile for user {user.screen_name}")
         
         return {
             "success": True,
@@ -1224,27 +1185,12 @@ async def get_user_profile(user_id: str, ctx: Context = None) -> Dict[str, Any]:
         }
 
 
-@mcp.tool(
-    name="get_tweet_details",
-    description="Get detailed information about a specific tweet",
-    schema={
-        "type": "object",
-        "properties": {
-            "tweet_id": {
-                "type": "string",
-                "description": "ID of the tweet to fetch details for"
-            }
-        },
-        "required": ["tweet_id"]
-    }
-)
-async def get_tweet_details(tweet_id: str, ctx: Context = None) -> Dict[str, Any]:
+@mcp.tool()
+async def get_tweet_details(tweet_id: str) -> Dict[str, Any]:
     """Get detailed information about a specific tweet."""
     try:
         client = await get_twitter_client()
         tweet = await client.get_tweet_by_id(tweet_id)
-        
-        ctx.info(f"Fetched details for tweet {tweet_id}")
         
         return {
             "success": True,
@@ -1271,7 +1217,7 @@ async def get_tweet_details(tweet_id: str, ctx: Context = None) -> Dict[str, Any
 
 @mcp.tool()
 async def create_poll_tweet(
-    text: str, choices: List[str], duration_minutes: int = 1440, ctx: Context = None
+    text: str, choices: List[str], duration_minutes: int = 1440
 ) -> str:
     """Create a tweet with a poll."""
     try:
@@ -1289,7 +1235,7 @@ async def create_poll_tweet(
 
 
 @mcp.tool()
-async def vote_on_poll(tweet_id: str, choice: str, ctx: Context = None) -> str:
+async def vote_on_poll(tweet_id: str, choice: str) -> str:
     """Vote on a poll."""
     try:
         client = await get_twitter_client()
@@ -1310,9 +1256,7 @@ async def vote_on_poll(tweet_id: str, choice: str, ctx: Context = None) -> str:
 
 
 @mcp.tool()
-async def get_trends(
-    category: str = "trending", count: int = 20, ctx: Context = None
-) -> str:
+async def get_trends(category: str = "trending", count: int = 20) -> str:
     """Get trending topics on Twitter."""
     try:
         client = await get_twitter_client()
@@ -1335,7 +1279,7 @@ async def get_trends(
 
 @mcp.tool()
 async def get_user_mentions(
-    user_id: str, count: int = 20, cursor: Optional[str] = None, ctx: Context = None
+    user_id: str, count: int = 20, cursor: Optional[str] = None
 ) -> str:
     """Get tweets mentioning a specific user."""
     try:
@@ -1351,7 +1295,7 @@ async def get_user_mentions(
 
 
 @mcp.tool()
-async def get_conversation_thread(tweet_id: str, ctx: Context = None) -> str:
+async def get_conversation_thread(tweet_id: str) -> str:
     """Get the full conversation thread for a tweet."""
     try:
         client = await get_twitter_client()
