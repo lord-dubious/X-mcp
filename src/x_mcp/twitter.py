@@ -1,5 +1,9 @@
+from typing import Any, Dict, List, Optional, Union
+import time
+import json
+import logging
 from fastmcp import FastMCP
-from typing import Optional, List, Dict, Any, Union
+from fastmcp.server import Context
 import twikit
 import os
 from pathlib import Path
@@ -101,13 +105,11 @@ async def search_user(
         return f"Failed to search users: {e}"
 
 
-@mcp.tool()
-async def search_twitter(
-    query: str,
-    product: str = "Top",
-    count: int = 20,
-    cursor: Optional[str] = None,
-) -> str:
+@mcp.tool(
+    name="search_twitter",
+    description="Search twitter with a query. Sort by 'Top' or 'Latest'"
+)
+async def search_twitter(ctx: Context, query: str, product: str = "Top", count: int = 20, cursor: Optional[str] = None) -> str:
     """Search twitter with a query. Sort by 'Top' or 'Latest'"""
     try:
         client = await get_twitter_client()
@@ -120,8 +122,12 @@ async def search_twitter(
         return f"Failed to search tweets: {e}"
 
 
-@mcp.tool()
+@mcp.tool(
+    name="get_user_tweets",
+    description="Get tweets from a specific user's timeline. Takes user_id, tweet_type (default: Tweets), count (default: 40), and cursor (optional)"
+)
 async def get_user_tweets(
+    ctx: Context,
     user_id: str,
     tweet_type: str = "Tweets",
     count: int = 40,
@@ -139,13 +145,16 @@ async def get_user_tweets(
         return f"Failed to get user tweets: {e}"
 
 
-@mcp.tool()
+@mcp.tool(
+    name="get_timeline",
+    description="Get tweets from your home timeline (For You). Takes count (default: 20), seen_tweet_ids (optional), and cursor (optional)"
+)
 async def get_timeline(
+    ctx: Context,
     count: int = 20,
     seen_tweet_ids: Optional[List[str]] = None,
     cursor: Optional[str] = None,
 ) -> str:
-    """Get tweets from your home timeline (For You)."""
     """Get tweets from your home timeline (For You)."""
     try:
         client = await get_twitter_client()
@@ -158,13 +167,22 @@ async def get_timeline(
         return f"Failed to get timeline: {e}"
 
 
-@mcp.tool()
-async def get_latest_timeline(count: int = 20) -> str:
-    """Get tweets from your home timeline (Following)."""
+@mcp.tool(
+    name="get_latest_timeline",
+    description="Get tweets from your home timeline (Following). Takes count (default: 20), seen_tweet_ids (optional), and cursor (optional)"
+)
+async def get_latest_timeline(
+    ctx: Context,
+    count: int = 20,
+    seen_tweet_ids: Optional[List[str]] = None,
+    cursor: Optional[str] = None,
+) -> str:
     """Get tweets from your home timeline (Following)."""
     try:
         client = await get_twitter_client()
-        tweets = await client.get_latest_timeline(count=count)
+        tweets = await client.get_latest_timeline(
+            count=count, seen_tweet_ids=seen_tweet_ids, cursor=cursor
+        )
         return convert_tweets_to_markdown(tweets)
     except Exception as e:
         logger.error(f"Failed to get latest timeline: {e}")
@@ -393,18 +411,25 @@ async def create_media_metadata(
         return f"Failed to create media metadata: {e}"
 
 
-@mcp.tool()
-async def create_poll(
-    choices: List[str], duration_minutes: int
-) -> str:
-    """Creates a poll and returns card-uri."""
+@mcp.tool(
+    name="create_poll_tweet",
+    description="Create a tweet with a poll. Takes text content, list of choices, and optional duration in minutes."
+)
+async def create_poll_tweet(ctx: Context, text: str, choices: List[str], duration_minutes: int = 1440) -> str:
+    """Create a tweet with a poll."""
     try:
         client = await get_twitter_client()
+        
+        # Create the poll
         card_uri = await client.create_poll(choices, duration_minutes)
-        return f"Successfully created poll with card URI: {card_uri}"
+        
+        # Post the tweet with the poll
+        tweet = await client.post_tweet(text, card_uri=card_uri)
+        
+        return f"Successfully created poll tweet: https://twitter.com/i/status/{tweet.id}"
     except Exception as e:
-        logger.error(f"Failed to create poll: {e}")
-        return f"Failed to create poll: {e}"
+        logger.error(f"Failed to create poll tweet: {e}")
+        return f"Failed to create poll tweet: {e}"
 
 
 @mcp.tool()
@@ -596,55 +621,6 @@ async def get_community_note(note_id: str) -> str:
     except Exception as e:
         logger.error(f"Failed to get community note: {e}")
         return f"Failed to get community note: {e}"
-
-
-@mcp.tool()
-async def get_user_tweets_with_cursor(
-    user_id: str,
-    tweet_type: str = "Tweets",
-    count: int = 40,
-    cursor: Optional[str] = None,
-) -> str:
-    """Fetches tweets from a specific user’s timeline."""
-    try:
-        client = await get_twitter_client()
-        tweets = await client.get_user_tweets(user_id, tweet_type, count, cursor)
-        return convert_tweets_to_markdown(tweets)
-    except Exception as e:
-        logger.error(f"Failed to get user tweets: {e}")
-        return f"Failed to get user tweets: {e}"
-
-
-@mcp.tool()
-async def get_timeline_with_cursor(
-    count: int = 20,
-    seen_tweet_ids: Optional[List[str]] = None,
-    cursor: Optional[str] = None,
-) -> str:
-    """Retrieves the timeline."""
-    try:
-        client = await get_twitter_client()
-        tweets = await client.get_timeline(count, seen_tweet_ids, cursor)
-        return convert_tweets_to_markdown(tweets)
-    except Exception as e:
-        logger.error(f"Failed to get timeline: {e}")
-        return f"Failed to get timeline: {e}"
-
-
-@mcp.tool()
-async def get_latest_timeline_with_cursor(
-    count: int = 20,
-    seen_tweet_ids: Optional[List[str]] = None,
-    cursor: Optional[str] = None,
-) -> str:
-    """Retrieves the timeline."""
-    try:
-        client = await get_twitter_client()
-        tweets = await client.get_latest_timeline(count, seen_tweet_ids, cursor)
-        return convert_tweets_to_markdown(tweets)
-    except Exception as e:
-        logger.error(f"Failed to get latest timeline: {e}")
-        return f"Failed to get latest timeline: {e}"
 
 
 @mcp.tool()
@@ -846,20 +822,28 @@ async def mute_user(user_id: str) -> str:
         return f"Failed to mute user: {e}"
 
 
-@mcp.tool()
+@mcp.tool(
+    name="get_trends",
+    description="Get trending topics on Twitter. Takes category (default: trending) and count (default: 20)"
+)
 async def get_trends(
-    category: str,
+    ctx: Context,
+    category: str = "trending",
     count: int = 20,
     retry: bool = True,
     additional_request_params: Optional[dict] = None,
 ) -> str:
-    """Retrieves trending topics on Twitter."""
+    """Get trending topics on Twitter."""
     try:
         client = await get_twitter_client()
         trends = await client.get_trends(
             category, count, retry, additional_request_params
         )
-        return str(trends)
+        return json.dumps([{
+            "name": trend.name,
+            "url": trend.url,
+            "tweet_volume": trend.tweet_volume
+        } for trend in trends], indent=2)
     except Exception as e:
         logger.error(f"Failed to get trends: {e}")
         return f"Failed to get trends: {e}"
@@ -1155,34 +1139,34 @@ async def change_group_name(group_id: str, name: str) -> str:
         return f"Failed to change group name: {e}"
 
 
-@mcp.tool()
-async def get_user_profile(user_id: str) -> Dict[str, Any]:
+@mcp.tool(
+    name="get_user_profile",
+    description="Get detailed profile information for a user"
+)
+async def get_user_profile(ctx: Context, user_id: str) -> Dict[str, Any]:
     """Get detailed profile information for a user."""
     try:
         client = await get_twitter_client()
         user = await client.get_user_by_id(user_id)
         
         return {
-            "success": True,
-            "data": {
-                "id": user.id,
-                "name": user.name,
-                "screen_name": user.screen_name,
-                "description": user.description,
-                "followers_count": user.followers_count,
-                "following_count": user.following_count,
-                "location": user.location,
-                "url": user.url,
-                "verified": user.verified
-            }
+            "id": user.id,
+            "name": user.name,
+            "screen_name": user.screen_name,
+            "description": user.description,
+            "followers_count": user.followers_count,
+            "friends_count": user.friends_count,
+            "statuses_count": user.statuses_count,
+            "created_at": str(user.created_at),
+            "verified": user.verified,
+            "protected": user.protected,
+            "location": user.location,
+            "url": user.url,
+            "profile_image_url": user.profile_image_url,
         }
     except Exception as e:
         logger.error(f"Failed to get user profile: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": "TwitterAPIError"
-        }
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -1216,25 +1200,6 @@ async def get_tweet_details(tweet_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def create_poll_tweet(
-    text: str, choices: List[str], duration_minutes: int = 1440
-) -> str:
-    """Create a tweet with a poll."""
-    try:
-        if not check_rate_limit("tweet"):
-            return "Rate limit exceeded for tweets. Please wait before posting again."
-
-        client = await get_twitter_client()
-        card_uri = await client.create_poll(choices, duration_minutes)
-        tweet = await client.create_tweet(text=text, card_uri=card_uri)
-        RATE_LIMITS["tweet"].append(time.time())
-        return f"Successfully created poll tweet: {tweet.id}"
-    except Exception as e:
-        logger.error(f"Failed to create poll tweet: {e}")
-        return f"Failed to create poll tweet: {e}"
-
-
-@mcp.tool()
 async def vote_on_poll(tweet_id: str, choice: str) -> str:
     """Vote on a poll."""
     try:
@@ -1253,28 +1218,6 @@ async def vote_on_poll(tweet_id: str, choice: str) -> str:
     except Exception as e:
         logger.error(f"Failed to vote on poll: {e}")
         return f"Failed to vote on poll: {e}"
-
-
-@mcp.tool()
-async def get_trends(category: str = "trending", count: int = 20) -> str:
-    """Get trending topics on Twitter."""
-    try:
-        client = await get_twitter_client()
-        trends = await client.get_trends(category=category, count=count)
-        return json.dumps(
-            [
-                {
-                    "name": trend.name,
-                    "url": trend.url,
-                    "tweet_volume": trend.tweet_volume,
-                }
-                for trend in trends
-            ],
-            indent=2,
-        )
-    except Exception as e:
-        logger.error(f"Failed to get trends: {e}")
-        return f"Failed to get trends: {e}"
 
 
 @mcp.tool()

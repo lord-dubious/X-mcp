@@ -14,8 +14,8 @@ authors = [
     { name = "lord-dubious", email = "chukwurahdavid@gmail.com" }
 ]
 dependencies = [
-    "fastmcp==0.1.0",
-    "mcp==1.0.0",
+    "fastmcp>=0.4.1",
+    "mcp>=1.2.0",
     "twikit>=2.2.1",
     "requests>=2.31.0"
 ]
